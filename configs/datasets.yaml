@@ -1,0 +1,16 @@
+seed: 42
+
+datasets:
+  enron:
+    raw_path: Enron.csv
+    processed_path: data/processed/enron_cleaned.parquet
+  phishing:
+    raw_path: phishing_email.csv
+    processed_path: data/processed/phishing_cleaned.parquet
+
+splits:
+  train: 0.60
+  calibration: 0.15
+  validation: 0.15
+  test: 0.10
+  split_indices_dir: data/splits

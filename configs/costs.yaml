@@ -1,0 +1,13 @@
+c_miss: 10.0
+c_FP: 100.0
+pi_threat: 0.50
+cost_defender:
+  - 0.0 # NB tau_low
+  - 0.0 # NB tau_mid
+  - 0.0 # NB tau_high
+  - 0.0 # LR tau_low
+  - 0.0 # LR tau_mid
+  - 0.0 # LR tau_high
+  - 0.1 # SVM tau_low
+  - 0.1 # SVM tau_mid
+  - 0.1 # SVM tau_high

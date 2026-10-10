@@ -1,0 +1,29 @@
+# Data files (do not commit raw or processed datasets)
+*.csv
+*.parquet
+*.tsv
+data/raw/
+data/processed/
+
+# Models
+*.pkl
+results/models/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.env
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
