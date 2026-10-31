@@ -16,15 +16,16 @@ from src.attacks.obfuscation import ObfuscationAttack
 from src.attacks.synonym_swap import SynonymSwapAttack
 from src.attacks.ham_injection import HamInjectionAttack
 from experiments.run_stage4_payoffs import load_all_defenders
+from src.data.loaders import get_active_dataset, load_processed_data
 
 def main():
-    dataset = 'enron'
-    print(f"=== Stage 6: Realized Utility vs Model Value on {dataset.capitalize()} ===")
-    
     with open('configs/datasets.yaml', 'r') as f: config = yaml.safe_load(f)
     with open('configs/costs.yaml', 'r') as f: costs_cfg = yaml.safe_load(f)
     with open('configs/types.yaml', 'r') as f: types_cfg = yaml.safe_load(f)
         
+    dataset = get_active_dataset(config)
+    print(f"=== Stage 6: Realized Utility vs Model Value on {dataset.capitalize()} ===")
+    
     prior = [t['prior'] for t in types_cfg['types']]
     U_D = np.load(f'results/tensors/U_D_{dataset}.npy')
     U_A = np.load(f'results/tensors/U_A_{dataset}.npy')
@@ -35,8 +36,7 @@ def main():
         "Bayesian Stackelberg": solve_dobss
     }
     
-    data_path = config['datasets'][dataset]['processed_path'].replace('.parquet', '.csv')
-    df = pd.read_csv(data_path)
+    df = load_processed_data(config, dataset)
     X_full = df['body'].fillna('').values
     y_full = df['label'].values
     

@@ -12,6 +12,7 @@ from src.defenders.naive_bayes import NaiveBayesDefender
 from src.defenders.logistic import LogisticDefender
 from src.defenders.svm import SVMDefender
 from src.defenders.threshold import calibrate_thresholds
+from src.data.loaders import get_active_dataset, load_processed_data
 
 def evaluate_defender(defender, X, y, split_name):
     preds = defender.predict(X)
@@ -25,18 +26,11 @@ def main():
     with open('configs/datasets.yaml', 'r') as f:
         config = yaml.safe_load(f)
         
-    dataset = 'enron'
+    dataset = get_active_dataset(config)
     print(f"=== Stage 2: Training Defenders on {dataset.capitalize()} Dataset ===")
     
     # Load processed text and labels
-    data_path = config['datasets'][dataset]['processed_path']
-    if not os.path.exists(data_path) and os.path.exists(data_path.replace('.parquet', '.csv')):
-        data_path = data_path.replace('.parquet', '.csv')
-        
-    if data_path.endswith('.parquet'):
-        df = pd.read_parquet(data_path)
-    else:
-        df = pd.read_csv(data_path)
+    df = load_processed_data(config, dataset)
         
     X_full = df['body'].fillna('').values
     y_full = df['label'].values

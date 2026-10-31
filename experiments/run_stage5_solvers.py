@@ -9,9 +9,12 @@ from src.games.minimax_lp import solve as solve_minimax
 from src.games.nash import solve as solve_nash
 from src.games.strong_stackelberg import solve as solve_sse
 from src.games.bayesian_stackelberg import solve as solve_dobss
+from src.data.loaders import get_active_dataset
 
 def main():
-    dataset = 'enron'
+    with open('configs/datasets.yaml', 'r') as f:
+        config = yaml.safe_load(f)
+    dataset = get_active_dataset(config)
     print(f"=== Stage 5: Solving Games on {dataset.capitalize()} ===")
     
     with open('configs/types.yaml', 'r') as f:

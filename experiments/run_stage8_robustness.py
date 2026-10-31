@@ -12,6 +12,7 @@ from src.attacks.obfuscation import ObfuscationAttack
 from src.attacks.synonym_swap import SynonymSwapAttack
 from src.attacks.ham_injection import HamInjectionAttack
 from experiments.run_stage4_payoffs import load_all_defenders
+from src.data.loaders import get_active_dataset, load_processed_data
 import pandas as pd
 
 import warnings
@@ -27,73 +28,67 @@ def sweep_priors(U_D, U_A):
         res = solve_dobss(U_D, U_A, prior)
         print(f"{spam_prior*100:>8.0f}% | {phish_prior*100:>8.0f}% | {res.model_value_D:>10.4f}")
 
-def sweep_costs(dataset):
+def sweep_costs(dataset, U_D, U_A):
     print("\n--- Sweeping Cost Ratios (c_miss : c_FP) ---")
-    print("Re-evaluating utility tensors across different ratios... (this takes ~1 min)")
     
-    with open('configs/datasets.yaml', 'r') as f: config = yaml.safe_load(f)
     with open('configs/costs.yaml', 'r') as f: costs_cfg = yaml.safe_load(f)
     with open('configs/types.yaml', 'r') as f: types_cfg = yaml.safe_load(f)
         
     prior = [t['prior'] for t in types_cfg['types']]
     
-    data_path = config['datasets'][dataset]['processed_path'].replace('.parquet', '.csv')
-    df = pd.read_csv(data_path)
-    X_full = df['body'].fillna('').values
-    y_full = df['label'].values
+    T, D, A = U_D.shape
+    dr = np.zeros((T, D, A))
+    fpr = np.zeros((T, D, A))
     
-    splits_dir = config['splits']['split_indices_dir']
-    idx_test = np.load(os.path.join(splits_dir, f'{dataset}_test.npy'))
+    pi = costs_cfg['pi_threat']
+    c_miss_base = costs_cfg['c_miss']
+    c_fp_base = costs_cfg['c_FP']
     
-    np.random.seed(42)
-    sample_idx = np.random.choice(idx_test, size=min(400, len(idx_test)), replace=False)
-    X_test, y_test = X_full[sample_idx], y_full[sample_idx]
-    
-    email_splits = {'ham': X_test[y_test == 0].tolist(), 'threat': X_test[y_test == 1].tolist()}
-    
-    defenders = load_all_defenders(dataset)
-    attacks = [
-        NoAttack(), ObfuscationAttack(strength=0.15), SynonymSwapAttack(strength=0.5),
-        SynonymSwapAttack(strength=1.0), HamInjectionAttack(strength=1), HamInjectionAttack(strength=3)
-    ]
-    
-    # Baseline c_FP is 100. We test ratios 0.1:1, 1:1, 10:1 (default), 50:1
-    cost_ratios = [0.1, 1.0, 10.0, 50.0] 
-    
+    # Analytically recover empirical DR and FPR from base payoff tensors
+    for t_idx, type_cfg in enumerate(types_cfg['types']):
+        for d_idx in range(D):
+            for a_idx in range(A):
+                if a_idx not in type_cfg['available_attacks']:
+                    continue
+                cost_idx = type_cfg['available_attacks'].index(a_idx)
+                a_cost = type_cfg['attack_costs'][cost_idx]
+                d_cost = costs_cfg['cost_defender'][d_idx]
+                one_minus_dr = (U_A[t_idx, d_idx, a_idx] + a_cost) / type_cfg['gain']
+                dr[t_idx, d_idx, a_idx] = 1.0 - one_minus_dr
+                fpr[t_idx, d_idx, a_idx] = (-U_D[t_idx, d_idx, a_idx] - c_miss_base * one_minus_dr * pi - d_cost) / (c_fp_base * (1.0 - pi))
+                
+    cost_ratios = [0.1, 1.0, 10.0, 50.0]
     print(f"\n{'Ratio (Miss:FP)':<15} | {'Value_D':<10}")
     print("-" * 30)
-    
-    # Suppress print statements from the engine temporarily to keep output clean
-    import builtins
-    original_print = builtins.print
     
     for ratio in cost_ratios:
         c_fp = 100.0
         c_miss = c_fp * ratio
-        
-        test_costs_cfg = costs_cfg.copy()
-        test_costs_cfg['c_FP'] = c_fp
-        test_costs_cfg['c_miss'] = c_miss
-        
-        builtins.print = lambda *args, **kwargs: None
-        U_D, U_A = estimate_payoffs(defenders, attacks, types_cfg['types'], test_costs_cfg, email_splits)
-        builtins.print = original_print
-        
-        res = solve_dobss(U_D, U_A, prior)
+        U_D_new = np.full((T, D, A), -9999.0)
+        for t_idx, type_cfg in enumerate(types_cfg['types']):
+            for d_idx in range(D):
+                for a_idx in range(A):
+                    if a_idx not in type_cfg['available_attacks']:
+                        continue
+                    d_cost = costs_cfg['cost_defender'][d_idx]
+                    U_D_new[t_idx, d_idx, a_idx] = -c_miss * (1.0 - dr[t_idx, d_idx, a_idx]) * pi - c_fp * fpr[t_idx, d_idx, a_idx] * (1.0 - pi) - d_cost
+        res = solve_dobss(U_D_new, U_A, prior)
         print(f"{ratio:>5.1f}:1{'':<8} | {res.model_value_D:>10.4f}")
 
 def main():
-    dataset = 'enron'
+    with open('configs/datasets.yaml', 'r') as f:
+        config = yaml.safe_load(f)
+    dataset = get_active_dataset(config)
     print(f"=== Stage 8: Robustness & Ablation on {dataset.capitalize()} ===")
     
     U_D = np.load(f'results/tensors/U_D_{dataset}.npy')
     U_A = np.load(f'results/tensors/U_A_{dataset}.npy')
     
-    # 1. Sweep Prior (Fast, just resolves MILP on existing tensors)
+    # 1. Sweep Prior (Fast, resolves MILP on existing tensors)
     sweep_priors(U_D, U_A)
     
-    # 2. Sweep Costs (Requires re-evaluating tensors)
-    sweep_costs(dataset)
+    # 2. Sweep Costs (Fast analytic recalculation of utility tensors)
+    sweep_costs(dataset, U_D, U_A)
     
     print("\nStage 8 completed successfully!")
 

@@ -13,6 +13,7 @@ from src.attacks.obfuscation import ObfuscationAttack
 from src.attacks.synonym_swap import SynonymSwapAttack
 from src.attacks.ham_injection import HamInjectionAttack
 from src.attacks.similarity import get_similarity_score, similarity_check
+from src.data.loaders import get_active_dataset, load_processed_data
 
 def main():
     random.seed(42)
@@ -21,11 +22,10 @@ def main():
     with open('configs/datasets.yaml', 'r') as f:
         config = yaml.safe_load(f)
         
-    dataset = 'enron'
+    dataset = get_active_dataset(config)
     print(f"=== Stage 3: Evaluating Attacks on {dataset.capitalize()} ===")
     
-    data_path = config['datasets'][dataset]['processed_path'].replace('.parquet', '.csv')
-    df = pd.read_csv(data_path)
+    df = load_processed_data(config, dataset)
     X_full = df['body'].fillna('').values
     y_full = df['label'].values
     
@@ -46,9 +46,23 @@ def main():
         HamInjectionAttack(strength=3),
     ]
     
-    defender = joblib.load(f'results/models/LogisticRegression_{dataset}.pkl')
-    # Use the 0.010 target FPR threshold
-    defender.set_threshold(0.6691) 
+    defender_model_path = f'results/models/LogisticRegression_{dataset}.pkl'
+    if not os.path.exists(defender_model_path):
+        print(f"Error: Model file {defender_model_path} not found. Please run Stage 2 first.")
+        return
+        
+    defender = joblib.load(defender_model_path)
+    
+    # Dynamically find the calibrated threshold for target FPR = 0.010
+    tau = 0.5
+    perf_path = f'results/logs/defender_performance_{dataset}.csv'
+    if os.path.exists(perf_path):
+        df_perf = pd.read_csv(perf_path)
+        lr_rows = df_perf[(df_perf['Filter'] == 'LogisticRegression') & np.isclose(df_perf['Target_FPR'], 0.010)]
+        if not lr_rows.empty:
+            tau = float(lr_rows.iloc[0]['Actual_Threshold'])
+    defender.set_threshold(tau)
+    print(f"Calibrated threshold for Logistic Regression (Target FPR=0.010): {tau:.4f}")
     
     print(f"\nEvaluating against Logistic Regression (Target FPR=0.010)")
     print(f"{'Attack':<25} | {'Valid %':<10} | {'Evasion Success':<15}")

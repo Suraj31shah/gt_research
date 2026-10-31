@@ -1,12 +1,13 @@
 seed: 42
+active_dataset: phishing
 
 datasets:
   enron:
     raw_path: Enron.csv
-    processed_path: data/processed/enron_cleaned.parquet
+    processed_path: data/processed/enron_cleaned.csv
   phishing:
     raw_path: phishing_email.csv
-    processed_path: data/processed/phishing_cleaned.parquet
+    processed_path: data/processed/phishing_cleaned.csv
 
 splits:
   train: 0.60

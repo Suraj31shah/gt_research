@@ -6,9 +6,11 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.games.budgeted_inspection import solve as solve_budgeted
+from src.data.loaders import get_active_dataset
 
 def main():
-    dataset = 'enron'
+    with open('configs/datasets.yaml', 'r') as f: config = yaml.safe_load(f)
+    dataset = get_active_dataset(config)
     print(f"=== Stage 9: Budgeted Inspection Game (Tiered Triage) on {dataset.capitalize()} ===")
     
     with open('configs/types.yaml', 'r') as f: types_cfg = yaml.safe_load(f)

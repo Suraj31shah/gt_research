@@ -1,3 +1,4 @@
+import os
 import pandas as pd
 import numpy as np
 
@@ -45,3 +46,39 @@ def load_phishing(filepath: str) -> pd.DataFrame:
     
     df = df[['subject', 'body', 'label']]
     return df
+
+def get_active_dataset(config: dict = None, default: str = 'phishing') -> str:
+    """
+    Resolves the dataset name from CLI args (--dataset <name>),
+    environment variable DATASET, or config['active_dataset'].
+    Defaults to 'phishing'.
+    """
+    import argparse
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument('--dataset', default=None)
+    args, _ = parser.parse_known_args()
+    if args.dataset:
+        return args.dataset
+    if os.environ.get('DATASET'):
+        return os.environ.get('DATASET')
+    if config and 'active_dataset' in config:
+        return config['active_dataset']
+    return default
+
+def load_processed_data(config: dict, dataset: str) -> pd.DataFrame:
+    """
+    Loads the cleaned/processed dataset DataFrame from CSV or Parquet.
+    """
+    data_path = config['datasets'][dataset]['processed_path']
+    if not os.path.exists(data_path):
+        if data_path.endswith('.parquet') and os.path.exists(data_path.replace('.parquet', '.csv')):
+            data_path = data_path.replace('.parquet', '.csv')
+        elif data_path.endswith('.csv') and os.path.exists(data_path.replace('.csv', '.parquet')):
+            data_path = data_path.replace('.csv', '.parquet')
+            
+    if not os.path.exists(data_path):
+        raise FileNotFoundError(f"Processed dataset file not found at: {data_path}")
+        
+    if data_path.endswith('.parquet'):
+        return pd.read_parquet(data_path)
+    return pd.read_csv(data_path)

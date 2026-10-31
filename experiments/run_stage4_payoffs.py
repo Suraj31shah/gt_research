@@ -12,6 +12,7 @@ from src.attacks.base import NoAttack
 from src.attacks.obfuscation import ObfuscationAttack
 from src.attacks.synonym_swap import SynonymSwapAttack
 from src.attacks.ham_injection import HamInjectionAttack
+from src.data.loaders import get_active_dataset, load_processed_data
 
 def load_all_defenders(dataset):
     models = []
@@ -40,11 +41,10 @@ def main():
     with open('configs/types.yaml', 'r') as f:
         types_cfg = yaml.safe_load(f)
         
-    dataset = 'enron'
+    dataset = get_active_dataset(config)
     print(f"=== Stage 4: Estimating Payoff Tensors on {dataset.capitalize()} ===")
     
-    data_path = config['datasets'][dataset]['processed_path'].replace('.parquet', '.csv')
-    df = pd.read_csv(data_path)
+    df = load_processed_data(config, dataset)
     X_full = df['body'].fillna('').values
     y_full = df['label'].values
     
